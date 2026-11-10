@@ -1,0 +1,3 @@
+# Only needed for C++. Python codebases need nothing beyond the standard library.
+tree-sitter==0.26.1
+tree-sitter-cpp==0.23.4

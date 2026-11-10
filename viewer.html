@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>codemap</title>
+<style>
+:root{--bg:#f5f6f8;--panel:#fff;--ink:#1c2330;--muted:#667085;--line:#d5d9e0;--node:#fff;--edge:#8a94a6;
+  --add:#1a7f37;--add-bg:#e3f6e8;--del:#c62828;--del-bg:#fde8e8;--mod:#9a6700;--mod-bg:#fff4d1;
+  --accent:#2f5fd0;--code:#f3f4f6}
+@media(prefers-color-scheme:dark){:root{--bg:#12151b;--panel:#1a1e26;--ink:#e6e9ef;--muted:#98a2b3;
+  --line:#343b48;--node:#222835;--edge:#6b7586;--add:#4cc26a;--add-bg:#173222;--del:#f0706b;
+  --del-bg:#3a1c1c;--mod:#e0b341;--mod-bg:#3a3014;--accent:#7ea2ff;--code:#151920}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,Segoe UI,sans-serif;
+  display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--panel);
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+#crumbs{flex:1;min-width:200px;font-size:15px}
+#crumbs a{color:var(--accent);cursor:pointer;text-decoration:none}
+#crumbs a:hover{text-decoration:underline}
+#crumbs span.sep{color:var(--muted);margin:0 6px}
+#crumbs b{font-weight:600}
+.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:10px;padding:1px 8px}
+label.tog{font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+main{flex:1;display:flex;min-height:0}
+#changes{width:250px;overflow:auto;background:var(--panel);border-right:1px solid var(--line);
+  padding:8px 0;font-size:13px}
+#changes h3,#side h3{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  margin:12px 12px 4px}
+#changes .row{padding:3px 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#changes .row:hover,#side .lnk:hover{background:var(--code)}
+#changes .row small{color:var(--muted)}
+.g{display:inline-block;width:14px;font-weight:700;font-family:ui-monospace,Consolas,monospace}
+.g.added{color:var(--add)}.g.removed{color:var(--del)}.g.modified{color:var(--mod)}
+#canvas{flex:1;overflow:auto;padding:20px;min-width:0}
+#canvas .empty{color:var(--muted);padding:30px}
+#side{width:34%;max-width:760px;min-width:300px;overflow:auto;background:var(--panel);
+  border-left:1px solid var(--line);padding:0 0 30px}
+#side .hd{padding:12px 14px 6px;border-bottom:1px solid var(--line);position:sticky;top:0;
+  background:var(--panel)}
+#side .hd .nm{font:600 16px ui-monospace,Consolas,monospace;word-break:break-all}
+#side .hd .meta{color:var(--muted);font-size:12px;margin-top:2px}
+#side .doc{padding:8px 14px 0;color:var(--muted)}
+#side .lnk{padding:2px 14px;cursor:pointer;font:12px ui-monospace,Consolas,monospace;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+pre.code{margin:10px 0 0;padding:8px 0;background:var(--code);font:12px/1.5 ui-monospace,Consolas,monospace;
+  overflow-x:auto;tab-size:4}
+pre.code div{padding:0 14px 0 0;white-space:pre;min-width:max-content}
+pre.code div::before{content:attr(data-n);display:inline-block;width:52px;padding-right:10px;
+  text-align:right;color:var(--muted);opacity:.7;user-select:none}
+pre.code .p{background:var(--add-bg)}pre.code .m{background:var(--del-bg)}
+pre.code .p::before{content:"+";color:var(--add);opacity:1}
+pre.code .m::before{content:"\2212";color:var(--del);opacity:1}
+pre.code .skip{color:var(--muted);cursor:pointer;font-style:italic}
+pre.code .skip:hover{color:var(--accent)}
+svg{display:block}
+.node > rect{fill:var(--node);stroke:var(--line);stroke-width:1.5;rx:8}
+.node{cursor:pointer}
+.node:hover > rect{stroke:var(--accent)}
+.node.sel > rect{stroke:var(--accent);stroke-width:2.5}
+.node text{fill:var(--ink);font:13px system-ui,Segoe UI,sans-serif;pointer-events:none}
+.node text.k{fill:var(--muted);font-size:10px;letter-spacing:.05em;text-transform:uppercase}
+.node text.t{font-weight:600}
+.node text.s{fill:var(--muted);font-size:11px}
+.node.leaf text.t{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.node.ghost > rect{fill:none;stroke-dasharray:4 4}
+.node.ghost text.t{fill:var(--muted);font-weight:500}
+.node.added > rect{fill:var(--add-bg);stroke:var(--add)}
+.node.removed > rect{fill:var(--del-bg);stroke:var(--del);stroke-dasharray:6 4}
+.node.removed text.t{text-decoration:line-through}
+.node.modified > rect{fill:var(--mod-bg);stroke:var(--mod)}
+.node.inner > rect{stroke:var(--mod);stroke-dasharray:2 3;stroke-width:2}
+.node text.b{font:600 11px ui-monospace,Consolas,monospace}
+.node tspan.added{fill:var(--add)}.node tspan.removed{fill:var(--del)}.node tspan.modified{fill:var(--mod)}
+.edge{fill:none;stroke:var(--edge);stroke-width:1.3}
+.edge.added{stroke:var(--add);stroke-width:2}
+.edge.removed{stroke:var(--del);stroke-width:2;stroke-dasharray:6 4}
+.edge.changed{stroke:var(--mod);stroke-width:2}
+.edge.dim{opacity:.12}
+.edge.hot{stroke-width:2.4}
+marker path{fill:var(--edge)}
+marker.added path{fill:var(--add)}marker.removed path{fill:var(--del)}marker.changed path{fill:var(--mod)}
+.boundary{fill:none;stroke:var(--edge);stroke-width:1.4;stroke-dasharray:7 5;opacity:.7}
+.blabel{fill:var(--muted);font:600 11px system-ui,Segoe UI,sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.zoom{display:inline-flex}
+.zoom button{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:13px system-ui,Segoe UI,sans-serif;
+  padding:1px 9px;cursor:pointer;min-width:30px}
+.zoom button:first-child{border-radius:8px 0 0 8px}.zoom button:last-child{border-radius:0 8px 8px 0}
+.zoom button+button{border-left:none}
+.zoom button:hover{color:var(--accent)}
+.zoom button.on{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+#canvas.zoommode{overflow:hidden;padding:0;cursor:grab;touch-action:none}
+#canvas.zoommode.panning{cursor:grabbing}
+#zsvg{display:block;user-select:none}
+#zsvg .node > rect{stroke-width:calc(1.5px * var(--u))}
+#zsvg .node.sel > rect{stroke-width:calc(3px * var(--u))}
+#zsvg .node.inner > rect{stroke-width:calc(2px * var(--u));stroke-dasharray:calc(2px * var(--u)) calc(3px * var(--u))}
+#zsvg .node.ghost > rect,#zsvg .node.removed > rect{stroke-dasharray:calc(6px * var(--u)) calc(4px * var(--u))}
+#zsvg .edge.removed{stroke-dasharray:calc(6px * var(--u)) calc(4px * var(--u))}
+#zsvg .boundary{stroke-width:calc(1.4px * var(--u));stroke-dasharray:calc(7px * var(--u)) calc(5px * var(--u))}
+#zsvg .blabel{font-size:calc(11px * var(--u))}
+#zsvg .node text.hdr{fill:var(--ink);font-weight:600;font-family:system-ui,Segoe UI,sans-serif}
+#zsvg .node text.hdr .hk{fill:var(--muted);font-weight:500;letter-spacing:.04em}
+#zsvg .node.open > rect{fill-opacity:.55}
+.node .sep{stroke:var(--line);stroke-width:1}
+#zsvg .node .sep{stroke-width:calc(1px * var(--u))}
+.mem{cursor:pointer}
+.mem text{font:11px ui-monospace,Consolas,monospace;fill:var(--ink)}
+.mem .hit{fill:transparent}
+.mem:hover .hit{fill:var(--code)}
+.mem.sel .hit{fill:var(--accent);fill-opacity:.22}
+.mem .gl{font-weight:700}
+.mem.added .gl{fill:var(--add)}.mem.modified .gl{fill:var(--mod)}.mem.removed .gl{fill:var(--del)}
+.mem.removed text{fill:var(--muted);text-decoration:line-through}
+.node text.more{font:italic 11px system-ui,Segoe UI,sans-serif;fill:var(--muted)}
+.filebox{position:relative;max-height:calc(100vh - 210px);min-height:240px;overflow:auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.filebox pre.code{margin:0}
+pre.code div.hl{box-shadow:inset 3px 0 0 var(--accent)}
+pre.code div.hl:not(.p):not(.m){background:color-mix(in srgb,var(--accent) 13%,transparent)}
+.srcbar{display:flex;gap:6px;flex-wrap:wrap;padding:2px 14px 6px}
+.srcbar button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;
+  font:12px ui-monospace,Consolas,monospace;padding:2px 8px;cursor:pointer}
+.srcbar button:hover{color:var(--accent);border-color:var(--accent)}
+.srcpath{padding:0 14px 6px;color:var(--muted);font:11px ui-monospace,Consolas,monospace}
+#zsvg .node.plain{opacity:.42}
+.diff .mem.same text{fill:var(--muted)}
+.greek{fill:var(--muted);opacity:.35}
+.greek.added{fill:var(--add);opacity:.9}.greek.modified{fill:var(--mod);opacity:.9}.greek.removed{fill:var(--del);opacity:.9}
+.legend{font-size:12px;color:var(--muted);display:flex;gap:10px;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;border:1.5px solid;vertical-align:-2px;margin-right:3px}
+</style>
+</head>
+<body>
+<header>
+  <div id="crumbs"></div>
+  <span class="legend" id="legend"></span>
+  <span class="zoom" id="modebox"><button id="modeZoom" title="Zoom into boxes to see what is inside them">Zoom</button><button id="modeDrill" title="Click a box to open it as its own diagram">Drill down</button></span>
+  <span class="zoom" id="zoombox"><button id="zoomOut" title="Zoom out">&minus;</button><button id="zoomFit" title="Fit to width">100%</button><button id="zoomIn" title="Zoom in (or Ctrl + scroll)">+</button></span>
+  <label class="tog" id="onlyWrap"><input type="checkbox" id="only"> changed only</label>
+  <span class="tag" id="mode"></span>
+</header>
+<main>
+  <nav id="changes"></nav>
+  <div id="canvas"></div>
+  <aside id="side"></aside>
+</main>
+<script>
+const DATA = /*__DATA__*/null;
+const N = DATA.nodes, DIFF = DATA.mode === "diff";
+const kids = {};
+for (const id in N) { const p = N[id].parent; if (p) (kids[p] ||= []).push(id); }
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $ = id => document.getElementById(id);
+const st = id => N[id].st || "same";
+const GLYPH = {added: "+", removed: "−", modified: "~"};
+const KIND = {system: "System", group: "Container", package: "Package", module: "Module", file: "File", family: "Specializations",
+              class: "Class", function: "Function", method: "Method"};
+const isUnit = id => N[id].kind === "module" || N[id].kind === "file";
+const kindLabel = id => { const n = N[id];
+  if (n.kl) return n.kl;
+  const k = n.kind === "class" && n.ck ? n.ck[0].toUpperCase() + n.ck.slice(1) : KIND[n.kind];
+  return k + (n.tmpl ? " template" : "") + (n.decl ? " (declared only)" : ""); };
+const label = id => N[id].name + (N[id].kind === "function" || N[id].kind === "method" ? "()" : "");
+const qual = id => isUnit(id) || !N[id].file ? N[id].name
+  : N[id].file + " › " + (N[id].q || id.split("::").pop());
+
+// A change is counted once, at the topmost node that carries it.
+const topmost = id => st(id) !== "same" && !(N[id].parent && st(N[id].parent) === st(id) && st(id) !== "modified");
+const statsMemo = {};
+function stats(id) {
+  if (statsMemo[id]) return statsMemo[id];
+  const s = {added: 0, removed: 0, modified: 0};
+  if (topmost(id)) s[st(id)]++;
+  for (const k of kids[id] || []) { const c = stats(k); for (const x in s) s[x] += c[x]; }
+  return statsMemo[id] = s;
+}
+const total = id => { const s = stats(id); return s.added + s.removed + s.modified; };
+function locOf(id) {
+  if (N[id].loc != null) return N[id].loc;
+  return (kids[id] || []).reduce((a, k) => a + locOf(k), 0);
+}
+function summary(id) {
+  const s = summaryOf(id);
+  return N[id].unit ? N[id].unit + " · " + s : s;    // a class standing in for its file names it
+}
+function summaryOf(id) {
+  const n = N[id], c = kids[id] || [];
+  if (n.kind === "function" || n.kind === "method") return n.sig || "";
+  const count = (k, w) => { const x = c.filter(i => N[i].kind === k).length; return x ? x + " " + w + (x > 1 ? (w.endsWith("s") ? "es" : "s") : "") : ""; };
+  const parts = [count("group", "container"), count("package", "package"), count("module", "module"), count("file", "file"), count("family", "group"),
+                 count("class", "class"), count("function", "function"), count("method", "method")].filter(Boolean);
+  parts.push(locOf(id).toLocaleString() + " lines");
+  return parts.join(" · ");
+}
+
+// ---------------------------------------------------------------- members
+// Methods (and helper functions filed under a class) are rows listed inside their
+// class's box, as in a UML class diagram, not boxes of their own. Their edges
+// count as the class's edges.
+const isMember = id => (N[id].kind === "method" || N[id].kind === "function") && N[N[id].parent]?.kind === "class";
+const boxKids = id => (kids[id] || []).filter(i => !isMember(i));
+const members = id => (kids[id] || []).filter(isMember).sort((a, b) => (N[a].line || 0) - (N[b].line || 0));
+const keep = i => !onlyChanged || total(i) || st(i) !== "same";
+const LINE = 15, CAP = 12;                        // row height; rows shown in drill-down boxes
+const rowsShown = (id, cap) => { const n = members(id).filter(keep).length; return Math.min(n, cap); };
+const listH = (id, cap = Infinity) => { const n = rowsShown(id, cap); return n ? 8 + n * LINE : 0; };
+function memberSVG(id, w, y0, cap = Infinity, sc = 1) {
+  const ms = members(id).filter(keep); if (!ms.length) return "";
+  const shown = ms.length <= cap ? ms : ms.slice(0, cap - 1);
+  let s = `<line class="sep" x1="0" x2="${w}" y1="${y0}" y2="${y0}"/>`;
+  if (LINE * sc < 6) {                            // too small to read: grey bars instead of text
+    shown.forEach((m, i) => s += `<rect class="greek ${st(m)}" x="12" y="${y0 + 9 + i * LINE}" height="5" width="${Math.min(w - 24, 6.6 * (label(m).length + 1))}"/>`);
+  } else {
+    const chars = Math.floor((w - 30) / 6.6);
+    shown.forEach((m, i) => { const y = y0 + 4 + (i + 1) * LINE, k = st(m), gl = GLYPH[k] || "";
+      s += `<g class="mem ${k}${m === selected ? " sel" : ""}" data-id="${esc(m)}">${tip(m)}<rect class="hit" x="2" y="${y - LINE + 3}" width="${w - 4}" height="${LINE}"/>` +
+        `<text x="10" y="${y}">${gl ? `<tspan class="gl">${gl} </tspan>` : ""}${esc(trunc(label(m) + " " + (N[m].sig || ""), chars))}</text></g>`; });
+  }
+  if (shown.length < ms.length) s += `<text class="more" x="10" y="${y0 + 4 + cap * LINE}">… ${ms.length - shown.length} more</text>`;
+  return s;
+}
+
+// ------------------------------------------------------------------ state
+let current = "root", selected = null, onlyChanged = false, zoom = null, lastScale = 1;
+function goTo(id) {
+  if (!N[id]) return;
+  if (isMember(id)) {                             // a row: show the view its class box is in
+    const cls = N[id].parent;
+    if (N[cls].parent) current = N[cls].parent;
+    selected = id; zoom = null;
+    try { history.pushState(null, "", "#" + encodeURIComponent(current) + "&" + encodeURIComponent(id)); } catch (e) {}
+    render(); return;
+  }
+  if (id !== current && boxKids(id).length) zoom = null;     // new view: fit it again
+  const hasKids = boxKids(id).length > 0;
+  current = hasKids ? id : N[id].parent;
+  selected = hasKids ? null : id;
+  // keep the address bar and Back button in step where the host page allows it
+  try { history.pushState(null, "", "#" + encodeURIComponent(current) + (selected ? "&" + encodeURIComponent(selected) : "")); } catch (e) {}
+  render();
+}
+function readHash() {
+  const [c, s] = location.hash.slice(1).split("&").map(decodeURIComponent);
+  current = N[c] ? c : "root";
+  selected = N[s] ? s : null;
+  render();
+}
+addEventListener("popstate", readHash);
+
+// ----------------------------------------------------------------- layout
+// A layered drawing (Sugiyama style). Inside the dashed boundary, dependents sit
+// above their dependencies. Boxes outside the current one sit in two bands: the
+// ones that use something inside above the boundary, the ones used below it.
+// An edge that skips rows gets a waypoint in every row it crosses, and the
+// waypoints are ordered and placed like boxes, so edges run through the gaps
+// between boxes instead of across them. Long edges heading to the same box
+// (or leaving the same outside box) share their waypoints, so they merge into
+// one trunk instead of running as many parallel lines.
+const W = 210, H = 66, GW = 160, GH = 46, GX = 34, GY = 64, BAND = 44, MAXROW = 6, MAXBAND = 6, PAD = 30;
+const byName = (a, b) => N[a].name.localeCompare(N[b].name);
+
+function layout(inner, ghosts, edges, size = null) {   // size: id -> [w, h] for boxes inside
+  const isIn = new Set(inner), topSet = new Set(), botSet = new Set();
+  const isGhost = k => topSet.has(k) || botSet.has(k);
+  const deg = new Map([...inner, ...ghosts].map(i => [i, 0]));
+  for (const e of edges) { deg.set(e.a, deg.get(e.a) + 1); deg.set(e.b, deg.get(e.b) + 1); }
+  const lone = inner.filter(i => !deg.get(i)).sort(byName);
+  const linked = inner.filter(i => deg.get(i)).sort(byName);
+
+  // 1. bands for outside boxes, by which way most of their edges point
+  const usesIn = new Map(ghosts.map(g => [g, 0])), usedByIn = new Map(ghosts.map(g => [g, 0]));
+  for (const e of edges) {
+    if (!isIn.has(e.a)) usesIn.set(e.a, usesIn.get(e.a) + e.n);
+    if (!isIn.has(e.b)) usedByIn.set(e.b, usedByIn.get(e.b) + e.n);
+  }
+  for (const g of ghosts) (usesIn.get(g) > usedByIn.get(g) ? topSet : botSet).add(g);
+
+  // 2. rows inside: break cycles with a DFS, then longest path from the top
+  const ie = edges.filter(e => isIn.has(e.a) && isIn.has(e.b));
+  const out0 = new Map(linked.map(i => [i, []])), hasIn = new Set(ie.map(e => e.b));
+  for (const e of ie) out0.get(e.a).push(e.b);
+  const state = new Map(), back = new Set();
+  const dfs = u => { state.set(u, 1);
+    for (const v of out0.get(u)) { if (state.get(v) === 1) back.add(u + "\n" + v); else if (!state.get(v)) dfs(v); }
+    state.set(u, 2); };
+  linked.filter(i => !hasIn.has(i)).forEach(i => state.get(i) || dfs(i));
+  linked.forEach(i => state.get(i) || dfs(i));
+  const succ = new Map(linked.map(i => [i, []])), pred = new Map(linked.map(i => [i, []]));
+  for (const e of ie) { const [u, v] = back.has(e.a + "\n" + e.b) ? [e.b, e.a] : [e.a, e.b]; succ.get(u).push(v); pred.get(v).push(u); }
+  const indeg = new Map(linked.map(i => [i, pred.get(i).length])), topo = [], queue = linked.filter(i => !indeg.get(i));
+  while (queue.length) { const u = queue.shift(); topo.push(u);
+    for (const v of succ.get(u)) { indeg.set(v, indeg.get(v) - 1); if (!indeg.get(v)) queue.push(v); } }
+  const rank = new Map();
+  for (const u of topo) rank.set(u, pred.get(u).length ? Math.max(...pred.get(u).map(p => rank.get(p))) + 1 : 0);
+  const maxR = Math.max(0, ...rank.values());
+  const touches = (u, set) => edges.some(e => (e.a === u && set.has(e.b)) || (e.b === u && set.has(e.a)));
+  for (const u of [...topo].reverse()) if (!pred.get(u).length) {      // pull sources down
+    if (succ.get(u).length) rank.set(u, Math.min(...succ.get(u).map(s => rank.get(s))) - 1);
+    else if (touches(u, botSet) && !touches(u, topSet)) rank.set(u, maxR);
+  }
+  // split rows that are too wide; boxes leaning up go first
+  const lean = u => pred.get(u).length + (touches(u, topSet) ? 1 : 0) - succ.get(u).length - (touches(u, botSet) ? 1 : 0);
+  const rows = []; for (const u of linked) (rows[rank.get(u)] ||= []).push(u);
+  // outside boxes wrap into several band rows; the best connected sit nearest
+  const weight = new Map(ghosts.map(g => [g, usesIn.get(g) + usedByIn.get(g)]));
+  const band = set => [...set].sort((a, b) => weight.get(b) - weight.get(a) || byName(a, b));
+  const tRows = Math.ceil(topSet.size / MAXBAND), bRows = Math.ceil(botSet.size / MAXBAND);
+  const R = new Map(), off = tRows;
+  let nr = 0;
+  rows.forEach(row => { row.sort((a, b) => lean(b) - lean(a) || byName(a, b));
+    const k = Math.ceil(row.length / MAXROW), per = Math.ceil(row.length / k);
+    row.forEach((u, j) => R.set(u, off + nr + Math.floor(j / per))); nr += k; });
+  band(topSet).forEach((g, i) => R.set(g, tRows - 1 - Math.floor(i / Math.ceil(topSet.size / tRows))));
+  band(botSet).forEach((g, i) => R.set(g, off + nr + Math.floor(i / Math.ceil(botSet.size / bRows))));
+  const nLayers = off + nr + bRows;
+
+  // 3. layered graph with waypoints ("dummies") for edges that skip rows
+  const layers = Array.from({length: nLayers}, () => []), dummy = new Set();
+  const upN = new Map(), downN = new Map();
+  for (const k of R.keys()) { layers[R.get(k)].push(k); upN.set(k, []); downN.set(k, []); }
+  const chains = [], trunk = new Map(); let dn = 0;
+  const link = (a, b) => { if (!downN.get(a).includes(b)) { downN.get(a).push(b); upN.get(b).push(a); } };
+  for (const e of edges) {
+    let u = e.a, v = e.b, rev = false;
+    if (R.get(u) > R.get(v)) { [u, v] = [v, u]; rev = true; }
+    const key = topSet.has(u) ? "from " + u : "to " + v;   // fan out from an outside user, else merge toward the target
+    const pts = [u];
+    for (let r = R.get(u) + 1; r < R.get(v); r++) {
+      let d = trunk.get(key + "@" + r);
+      if (!d) { d = "\u0000" + dn++; trunk.set(key + "@" + r, d); dummy.add(d); R.set(d, r); layers[r].push(d); upN.set(d, []); downN.set(d, []); }
+      pts.push(d); }
+    pts.push(v);
+    if (R.get(u) !== R.get(v)) for (let i = 0; i + 1 < pts.length; i++) link(pts[i], pts[i + 1]);
+    chains.push({e, pts, rev});
+  }
+
+  // 4. order each row to reduce crossings: barycenter sweeps, then adjacent swaps
+  const pos = new Map(), setPos = () => layers.forEach(l => l.forEach((k, i) => pos.set(k, i)));
+  setPos();
+  const crossings = () => { let c = 0;
+    for (let r = 0; r + 1 < layers.length; r++) {
+      const s = []; for (const u of layers[r]) for (const v of downN.get(u)) s.push([pos.get(u), pos.get(v)]);
+      for (let i = 0; i < s.length; i++) for (let j = i + 1; j < s.length; j++) if ((s[i][0] - s[j][0]) * (s[i][1] - s[j][1]) < 0) c++;
+    } return c; };
+  const sortRow = (r, nb) => { const l = layers[r], key = new Map(l.map(k => { const ns = nb.get(k);
+      return [k, ns.length ? ns.reduce((s, x) => s + pos.get(x), 0) / ns.length : pos.get(k)]; }));
+    l.sort((a, b) => key.get(a) - key.get(b)); l.forEach((k, i) => pos.set(k, i)); };
+  const pairCross = (u, v) => { let c = 0;
+    for (const nb of [upN, downN]) for (const a of nb.get(u)) for (const b of nb.get(v)) if (pos.get(a) > pos.get(b)) c++;
+    return c; };
+  const transpose = () => { for (let pass = 0, better = true; better && pass < 6; pass++) { better = false;
+    for (const l of layers) for (let i = 0; i + 1 < l.length; i++) { const u = l[i], v = l[i + 1];
+      if (pairCross(v, u) < pairCross(u, v)) { l[i] = v; l[i + 1] = u; pos.set(v, i); pos.set(u, i + 1); better = true; } } } };
+  let best = layers.map(l => l.slice()), bestC = crossings();
+  for (let it = 0; it < 10 && bestC; it++) {
+    for (let r = 1; r < layers.length; r++) sortRow(r, upN);
+    for (let r = layers.length - 2; r >= 0; r--) sortRow(r, downN);
+    transpose();
+    const c = crossings(); if (c < bestC) { bestC = c; best = layers.map(l => l.slice()); }
+  }
+  best.forEach((l, r) => layers[r] = l); setPos();
+
+  // 5. x: pull each box toward its neighbours, keeping row order and spacing
+  //    (exact for one row at a time: isotonic regression by pool-adjacent-violators)
+  const wOf = k => dummy.has(k) ? 0 : isGhost(k) ? GW : size ? size(k)[0] : W;
+  const hOf = k => dummy.has(k) ? 0 : isGhost(k) ? GH : size ? size(k)[1] : H;
+  const gap = (a, b) => dummy.has(a) && dummy.has(b) ? 10 : dummy.has(a) || dummy.has(b) ? 20 : GX;
+  const x = new Map();
+  const place = (l, want) => {
+    const o = [0]; for (let i = 1; i < l.length; i++) o.push(o[i - 1] + (wOf(l[i - 1]) + wOf(l[i])) / 2 + gap(l[i - 1], l[i]));
+    const bl = [];
+    l.forEach((k, i) => { const w = dummy.has(k) ? 1 : 2; bl.push({s: (want[i] - o[i]) * w, w, a: i, b: i});
+      while (bl.length > 1 && bl[bl.length - 2].s / bl[bl.length - 2].w > bl[bl.length - 1].s / bl[bl.length - 1].w) {
+        const t = bl.pop(), p = bl[bl.length - 1]; p.s += t.s; p.w += t.w; p.b = t.b; } });
+    for (const b of bl) for (let i = b.a; i <= b.b; i++) x.set(l[i], b.s / b.w + o[i]); };
+  layers.forEach(l => place(l, l.map(() => 0)));
+  const wanted = (k, nbs) => { let s = 0, n = 0; for (const nb of nbs) for (const j of nb.get(k)) { s += x.get(j); n++; } return n ? s / n : x.get(k); };
+  for (let it = 0; it < 12; it++) {
+    const nbs = it % 3 === 0 ? [upN] : it % 3 === 1 ? [downN] : [upN, downN];
+    const rs = [...layers.keys()]; if (it % 3 === 1) rs.reverse();
+    for (const r of rs) place(layers[r], layers[r].map(k => wanted(k, nbs)));
+  }
+
+  // 6. coordinates
+  const rowH = layers.map(l => Math.max(0, ...l.map(hOf)) || H);
+  const yOf = []; let y = PAD;
+  for (let r = 0; r < nLayers; r++) { yOf[r] = y;
+    y += rowH[r] + GY + ((tRows && r === off - 1) || (bRows && r === off + nr - 1) ? BAND : 0); }
+  let minX = Infinity; for (const [k, cx] of x) minX = Math.min(minX, cx - wOf(k) / 2);
+  const shift = PAD - (isFinite(minX) ? minX : 0);
+  const P = new Map();                        // node -> {x, y} top-left
+  for (const [k, cx] of x) P.set(k, {x: cx + shift - wOf(k) / 2, y: yOf[R.get(k)]});
+  // unconnected boxes: a grid to the right of the graph (or on their own)
+  let right = 0; for (const [k, p] of P) if (!dummy.has(k) && !isGhost(k)) right = Math.max(right, p.x + wOf(k));
+  if (lone.length) {
+    const cols = linked.length ? Math.min(2, lone.length) : Math.min(MAXROW, lone.length);
+    const x0 = linked.length ? right + GX * 2 : PAD, y0 = linked.length ? yOf[off] : PAD;
+    const cw = Math.max(...lone.map(wOf)), ch = Math.max(...lone.map(hOf));
+    lone.forEach((k, i) => P.set(k, {x: x0 + (i % cols) * (cw + GX), y: y0 + Math.floor(i / cols) * (ch + 22)}));
+  }
+  let width = 0, height = 0;
+  for (const [k, p] of P) { width = Math.max(width, p.x + wOf(k)); height = Math.max(height, p.y + hOf(k)); }
+  width += PAD; height += PAD;
+
+  // boundary around everything inside, and band labels
+  let boundary = null; const labels = [];
+  if (ghosts.length) {
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const [k, p] of P) if (!topSet.has(k) && !botSet.has(k)) {
+      x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y); x2 = Math.max(x2, p.x + wOf(k)); y2 = Math.max(y2, p.y + hOf(k)); }
+    boundary = {x: x1 - 16, y: y1 - 30, w: x2 - x1 + 32, h: y2 - y1 + 44};
+    if (topSet.size) labels.push({x: PAD, y: yOf[0] - 10, text: "Depends on this"});
+    if (botSet.size) labels.push({x: PAD, y: yOf[off + nr] - 10, text: "This depends on"});
+  }
+
+  // 7. edge paths; ports spread along a box's edge, ordered by where the edge goes
+  const cx = k => P.get(k).x + wOf(k) / 2;
+  const below = new Map(), above = new Map();      // box -> the distinct points its edges go to
+  const add = (m, k, nb) => (m.get(k) || m.set(k, new Set()).get(k)).add(nb);
+  for (const c of chains) if (R.get(c.pts[0]) !== R.get(c.pts[c.pts.length - 1])) {
+    add(below, c.pts[0], c.pts[1]); add(above, c.pts[c.pts.length - 1], c.pts[c.pts.length - 2]); }
+  const portX = (m, k, nb) => { if (dummy.has(k)) return cx(k);
+    const list = [...m.get(k)].sort((a, b) => cx(a) - cx(b)); if (list.length === 1) return cx(k);
+    return P.get(k).x + wOf(k) * (0.12 + 0.76 * (list.indexOf(nb) + 1) / (list.length + 1)); };
+  for (const c of chains) {
+    const u = c.pts[0], v = c.pts[c.pts.length - 1];
+    if (R.get(u) === R.get(v)) {               // same row: a loop underneath
+      const a = cx(u), b = cx(v), yb = P.get(u).y + hOf(u), d = 40;
+      c.d = `M${a},${yb} C${a},${yb + d} ${b},${yb + d} ${b},${yb + 4}`; continue; }
+    const pts = [[portX(below, u, c.pts[1]), P.get(u).y + hOf(u)]];
+    for (const d of c.pts.slice(1, -1)) pts.push([cx(d), yOf[R.get(d)]], [cx(d), yOf[R.get(d)] + rowH[R.get(d)]]);
+    pts.push([portX(above, v, c.pts[c.pts.length - 2]), P.get(v).y]);
+    if (c.rev) pts[0][1] += 4; else pts[pts.length - 1][1] -= 4;   // room for the arrowhead
+    if (c.rev) pts.reverse();
+    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    for (let j = 1; j < pts.length; j++) {       // vertical tangents; straight where x is equal
+      const [px, py] = pts[j - 1], [qx, qy] = pts[j], m = (qy - py) / 2;
+      d += ` C${px.toFixed(1)},${(py + m).toFixed(1)} ${qx.toFixed(1)},${(qy - m).toFixed(1)} ${qx.toFixed(1)},${qy.toFixed(1)}`;
+    }
+    c.d = d;
+  }
+  return {pos: P, width, height, chains, boundary, labels};
+}
+
+// ----------------------------------------------------------------- render
+function view() {
+  const anc = new Set(); for (let x = current; x; x = N[x].parent) anc.add(x);
+  const rep = id => { if (anc.has(id)) return null; let x = id;
+    while (x && !anc.has(N[x].parent)) x = N[x].parent; return x || null; };
+  let inner = boxKids(current);
+  if (onlyChanged) inner = inner.filter(i => total(i) || st(i) !== "same");
+  const innerSet = new Set(inner), agg = new Map(), ghosts = new Set();
+  for (const [s, d, kind, est] of DATA.edges) {
+    const a = rep(s), b = rep(d);
+    if (!a || !b || a === b) continue;
+    const ia = N[a].parent === current, ib = N[b].parent === current;
+    if (!ia && !ib) continue;
+    if ((ia && !innerSet.has(a)) || (ib && !innerSet.has(b))) continue;
+    if (!ia) ghosts.add(a); if (!ib) ghosts.add(b);
+    const key = a + "\n" + b;
+    const e = agg.get(key) || {a, b, n: 0, added: 0, removed: 0, kinds: {}};
+    e.n++; if (est) e[est]++; e.kinds[kind] = (e.kinds[kind] || 0) + 1; agg.set(key, e);
+  }
+  return {inner, ghosts: [...ghosts], edges: [...agg.values()]};
+}
+const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+
+function crumbs(to) {
+  const chain = []; for (let x = to; x; x = N[x].parent) chain.unshift(x);
+  $("crumbs").innerHTML = chain.map((id, i) => i === chain.length - 1
+    ? `<b>${esc(N[id].name)}</b>` : `<a data-go="${esc(id)}">${esc(N[id].name)}</a>`).join('<span class="sep">›</span>');
+  $("crumbs").querySelectorAll("a").forEach(a => a.onclick = () => {
+    const id = a.dataset.go;
+    if (mode === "zoom" && id === current) { Z = null; selected = null; schedule(); }
+    else if (mode === "zoom" && inView(id)) zoomTo(id); else goTo(id); });
+}
+const inView = id => { for (let x = N[id].parent; x; x = N[x].parent) if (x === current) return true; return false; };
+const MARKERS = ["", "added", "removed", "changed"].map(c => `<marker id="ar${c}" class="${c}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z"/></marker>`).join("");
+const edgeClass = e => !DIFF ? "" : e.added === e.n ? "added" : e.removed === e.n ? "removed" : (e.added || e.removed) ? "changed" : "";
+function edgeSVG(e, d, widthStyle) {
+  const cls = edgeClass(e);
+  const kinds = Object.entries(e.kinds).map(([k, n]) => `${n} ${k}`).join(", ");
+  const chg = (e.added ? ` (+${e.added} new)` : "") + (e.removed ? ` (−${e.removed} removed)` : "");
+  return `<path class="edge ${cls}" data-a="${esc(e.a)}" data-b="${esc(e.b)}" marker-end="url(#ar${cls})" style="${widthStyle(cls, e)}" d="${d}"><title>${esc(label(e.a))} → ${esc(label(e.b))}: ${kinds}${chg}</title></path>`;
+}
+function nodeClass(id, ghost) {
+  const own = st(id), leaf = !boxKids(id).length;
+  return ["node", ghost ? "ghost" : "", leaf ? "leaf" : "", id === selected ? "sel" : "",
+          !ghost && own !== "same" ? own : (!ghost && total(id) ? "inner" : ""),
+          DIFF && own === "same" && !total(id) ? "plain" : ""].join(" ");   // plain: nothing in it changed
+}
+function badgeOf(id) {
+  const s = stats(id);
+  return DIFF && total(id) ? ["added", "modified", "removed"].filter(k => s[k])
+    .map(k => `<tspan class="${k}">${GLYPH[k]}${s[k]} </tspan>`).join("") : "";
+}
+const tip = id => `<title>${esc(qual(id))}${N[id].doc ? "\n" + esc(N[id].doc) : ""}</title>`;
+function fullText(id, w, ghost) {
+  return ghost ? `<text class="k" x="10" y="16">${esc(trunc(kindLabel(id), 24))}</text>
+        <text class="t" x="10" y="34">${esc(trunc(label(id), 20))}</text>`
+    : `<text class="k" x="12" y="17">${esc(kindLabel(id))}</text>
+        <text class="b" x="${w - 10}" y="17" text-anchor="end">${ghost ? "" : badgeOf(id)}</text>
+        <text class="t" x="12" y="37">${esc(trunc(label(id), Math.floor(27 * w / W)))}</text>
+        <text class="s" x="12" y="54">${esc(trunc(summary(id), Math.floor(36 * w / W)))}</text>`;
+}
+
+function render() {
+  const v = view(), cv = $("canvas");
+  cv.classList.toggle("zoommode", mode === "zoom");
+  $("modeDrill").classList.toggle("on", mode === "drill");
+  $("modeZoom").classList.toggle("on", mode === "zoom");
+  $("zoombox").hidden = !v.inner.length;
+  if (!v.inner.length) {
+    crumbs(current);
+    cv.innerHTML = `<div class="empty">${onlyChanged ? "Nothing changed inside this box." : "Nothing inside this box. Its code is on the right."}</div>`;
+  } else if (mode === "zoom") {
+    zoomPrepare(v);
+    zoomDraw();
+    return;                        // zoomDraw keeps the crumbs and side panel up to date
+  } else {
+    crumbs(current);
+    drillRender(v);
+  }
+  renderSide(selected || current);
+}
+
+function drillRender(v) {
+  const ids = [...v.inner, ...v.ghosts], cv = $("canvas");
+  {
+    const L = layout(v.inner, v.ghosts, v.edges, id => [W, H + listH(id, CAP)]);
+    const scale = zoom ?? Math.max(0.45, Math.min(1, (cv.clientWidth - 40) / L.width));
+    lastScale = scale;
+    $("zoomFit").textContent = Math.round(scale * 100) + "%";
+    let svg = `<svg width="${(L.width * scale).toFixed(0)}" height="${(L.height * scale).toFixed(0)}" viewBox="0 0 ${L.width} ${L.height}"><defs>${MARKERS}</defs>`;
+    if (L.boundary) { const b = L.boundary;
+      svg += `<rect class="boundary" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="12"/>
+        <text class="blabel" x="${b.x + 14}" y="${b.y + 19}">${esc(kindLabel(current))} · ${esc(N[current].name)}</text>`; }
+    for (const t of L.labels) svg += `<text class="blabel" x="${t.x}" y="${t.y}">${esc(t.text)}</text>`;
+    for (const c of L.chains)
+      svg += edgeSVG(c.e, c.d, (cls, e) => `stroke-width:${cls ? "" : Math.min(3, 1 + Math.log10(e.n)).toFixed(1)}`);
+    for (const id of ids) {
+      const p = L.pos.get(id), ghost = N[id].parent !== current;
+      svg += `<g class="${nodeClass(id, ghost)}" data-id="${esc(id)}" transform="translate(${p.x},${p.y})">${tip(id)}` +
+        `<rect width="${ghost ? GW : W}" height="${ghost ? GH : H + listH(id, CAP)}"/>${fullText(id, W, ghost)}` +
+        (ghost ? "" : memberSVG(id, W, H, CAP)) + `</g>`;
+    }
+    cv.innerHTML = svg + "</svg>";
+    cv.querySelectorAll(".node").forEach(g => { const id = g.dataset.id; g.onclick = () => goTo(id); });
+    cv.querySelectorAll(".mem").forEach(m => m.onclick = e => { e.stopPropagation(); goTo(m.dataset.id); });
+  }
+}
+
+// ------------------------------------------------------------ semantic zoom
+// The other mode. Boxes are sized by how much they contain. When a box is big
+// enough on screen, its own diagram is drawn inside it, and so on down to the
+// methods. How much a box shows depends on its size on screen: nothing, an
+// outline, its name, or everything. Drag to pan, scroll to zoom, click to
+// select, double-click to zoom to a box.
+let mode = "zoom", Z = null, zTop = null, zKey = "", zRects = new Map(), here = null, sideFor = null;
+const C = 0.32;                                   // contents drawn at about this fraction of natural size
+const IN = 8, OPEN_PX = 170, MIN_PX = 4;
+const sib = new Map();                            // box -> edges between its children
+(function () {
+  const memo = new Map();
+  const anc = id => { if (!memo.has(id)) { const a = []; for (let x = id; x; x = N[x].parent) a.unshift(x); memo.set(id, a); } return memo.get(id); };
+  for (const [s, d, kind, est] of DATA.edges) {
+    if (!N[s] || !N[d]) continue;
+    const as = anc(s), ad = anc(d); let i = 0;
+    while (i < as.length && i < ad.length && as[i] === ad[i]) i++;
+    if (i === as.length || i === ad.length) continue;   // one contains the other
+    let m = sib.get(as[i - 1]); if (!m) sib.set(as[i - 1], m = new Map());
+    const key = as[i] + "\n" + ad[i];
+    const e = m.get(key) || {a: as[i], b: ad[i], n: 0, added: 0, removed: 0, kinds: {}};
+    e.n++; if (est) e[est]++; e.kinds[kind] = (e.kinds[kind] || 0) + 1; m.set(key, e);
+  }
+})();
+const shownKids = id => boxKids(id).filter(keep);
+// the part of a box above the diagram inside it: a class shows its title and member
+// rows there in every state, so nothing moves when its contents open
+const topOf = id => N[id].kind === "class" ? H + listH(id) : 26;
+const estMemo = new Map(), innerMemo = new Map();
+function est(id) {                                // world size of a box: its own diagram at scale C
+  const key = id + (onlyChanged ? "*" : "");      // (built from the leaves up; ~50 ms for 700 boxes)
+  if (estMemo.has(key)) return estMemo.get(key);
+  let r = [W, H + listH(id)];
+  if (shownKids(id).length) {
+    const L = innerLayout(id);
+    r = [Math.max(W, L.width * C + 2 * IN), Math.max(H, L.height * C + topOf(id) + IN)];
+  }
+  estMemo.set(key, r); return r;
+}
+function innerLayout(id) {                        // the diagram drawn inside an opened box
+  const key = id + (onlyChanged ? "*" : "");
+  if (!innerMemo.has(key)) {
+    const ks = shownKids(id), set = new Set(ks);
+    const edges = [...(sib.get(id)?.values() || [])].filter(e => set.has(e.a) && set.has(e.b));
+    innerMemo.set(key, layout(ks, [], edges, est));
+  }
+  return innerMemo.get(key);
+}
+function zoomPrepare(v) {
+  const key = current + (onlyChanged ? "*" : "");
+  if (zKey !== key) { zKey = key; zTop = layout(v.inner, v.ghosts, v.edges, est); Z = null; }
+}
+let pending = false;
+const schedule = () => {           // one redraw per frame; the timer covers tabs where frames are paused
+  if (pending) return;
+  pending = true;
+  const run = () => { if (!pending) return; pending = false; if (mode === "zoom" && zTop) zoomDraw(); };
+  requestAnimationFrame(run); setTimeout(run, 60);
+};
+
+function zoomDraw() {
+  const cv = $("canvas"), vp = {w: cv.clientWidth, h: cv.clientHeight};
+  if (!Z) { const k = Math.min(vp.w / zTop.width, vp.h / zTop.height) * 0.97;
+    Z = {k, x: (vp.w - zTop.width * k) / 2, y: Math.max(0, (vp.h - zTop.height * k) / 2)}; }
+  zRects = new Map(); here = null;
+  let svg = `<svg id="zsvg" width="${vp.w}" height="${vp.h}"><defs>${MARKERS}</defs>` +
+    `<g transform="translate(${Z.x.toFixed(2)},${Z.y.toFixed(2)}) scale(${Z.k})" style="--u:${1 / Z.k}">`;
+  const L = zTop;
+  if (L.boundary) { const b = L.boundary;
+    svg += `<rect class="boundary" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="12"/>
+      <text class="blabel" x="${b.x + 14}" y="${b.y + 19}">${esc(kindLabel(current))} · ${esc(N[current].name)}</text>`; }
+  for (const t of L.labels) svg += `<text class="blabel" x="${t.x}" y="${t.y}">${esc(t.text)}</text>`;
+  svg += drawLevel(L, {ox: 0, oy: 0, s: 1}, true, vp);
+  cv.innerHTML = svg + "</g></svg>";
+  $("zoomFit").textContent = Math.round(Z.k * 100) + "%";
+  crumbs(here || current);
+  const want = selected || here || current;
+  if (want !== sideFor) { sideFor = want; renderSide(want); }
+}
+
+function drawLevel(L, f, top, vp) {
+  const sc = Z.k * f.s;                           // this level's units -> screen pixels
+  let out = "";
+  // edges fade in with the level: when its boxes are tiny, bundles of edges are just noise
+  const fade = Math.max(0, Math.min(1, (W * sc - 25) / 110));
+  if (fade > 0.15)
+    for (const c of L.chains)
+      out += edgeSVG(c.e, c.d, cls => `stroke-width:calc(${cls ? 2 : 1.3}px * var(--u));opacity:${cls ? 1 : (fade * (DIFF ? 0.45 : 1)).toFixed(2)}`);
+  for (const [id, p] of L.pos) {
+    if (id[0] === "\u0000") continue;             // a waypoint, not a box
+    const ghost = top && N[id].parent !== current;
+    const [w, h] = ghost ? [GW, GH] : est(id);
+    const r = {x: Z.x + Z.k * (f.ox + f.s * p.x), y: Z.y + Z.k * (f.oy + f.s * p.y), w: w * sc, h: h * sc};
+    if (r.w < MIN_PX || r.x > vp.w + 40 || r.y > vp.h + 40 || r.x + r.w < -40 || r.y + r.h < -40) continue;
+    zRects.set(id, r);
+    out += boxSVG(id, p.x, p.y, w, h, ghost, sc, r, f, vp);
+  }
+  return out;
+}
+
+function boxSVG(id, x, y, w, h, ghost, sc, r, f, vp) {
+  const ks = ghost ? [] : shownKids(id), isCls = !ghost && N[id].kind === "class";
+  const top = ghost ? 0 : topOf(id);              // fixed in box units (as est() reserved), so nothing moves as you zoom
+  let g = `<rect width="${w}" height="${h}"/>`;
+  let open = false;
+  if (ks.length && r.w >= OPEN_PX) {
+    const L = innerLayout(id);
+    const cs = Math.min((w - 2 * IN) / L.width, (h - top - IN) / L.height);
+    open = W * cs * sc >= 20;                     // open once the boxes inside are big enough to see
+    if (open) {
+      const dx = IN + (w - 2 * IN - L.width * cs) / 2, dy = top + (h - top - IN - L.height * cs) / 2;
+      if (!isCls) {                               // packages and files: a one-line header
+        const fs = Math.min(12 / sc, top * 0.62), b = badgeOf(id);
+        g += `<text class="hdr" x="${10 / sc}" y="${(top * 0.62)}" style="font-size:${fs}px">` +
+          `<tspan class="hk">${esc(kindLabel(id).toUpperCase())}</tspan> ${esc(label(id))} ${b}</text>`;
+      }
+      if (r.x < vp.w / 2 && r.x + r.w > vp.w / 2 && r.y < vp.h / 2 && r.y + r.h > vp.h / 2 && r.w * r.h > 0.3 * vp.w * vp.h) here = id;
+      const f2 = {ox: f.ox + f.s * (x + dx), oy: f.oy + f.s * (y + dy), s: f.s * cs};
+      g += `<g transform="translate(${dx},${dy}) scale(${cs})" style="--u:${1 / (sc * cs)}">${drawLevel(L, f2, false, vp)}</g>`;
+    }
+  }
+  if (!open || isCls) {                           // a class keeps its title and rows whether open or not
+    const th = isCls ? H : h;                     // height of the title area
+    if (sc >= 0.62) g += fullText(id, w, ghost);  // natural size is readable: show everything
+    else if (th * sc >= 15) {                     // otherwise just the name, kept at a readable size
+      const fs = Math.min(12 / sc, th * 0.42), chars = Math.max(3, Math.floor((w - 16 / sc) / (fs * 0.6)));
+      g += `<text class="t" x="${8 / sc}" y="${th / 2 + fs * 0.35}" style="font-size:${fs}px">${esc(trunc(label(id), chars))}</text>`;
+    }
+    if (isCls && h * sc >= 20) g += memberSVG(id, w, H, Infinity, sc);
+  }
+  return `<g class="${nodeClass(id, ghost)}${open ? " open" : ""}" data-id="${esc(id)}" transform="translate(${x},${y})">${tip(id)}${g}</g>`;
+}
+
+function zoomAt(mx, my, factor) {
+  const k = Math.max(0.02, Math.min(2000, Z.k * factor)); factor = k / Z.k;
+  Z.x = mx - (mx - Z.x) * factor; Z.y = my - (my - Z.y) * factor; Z.k = k; schedule();
+}
+function worldRect(id) {                          // where a box is, drawn or not (same maths as boxSVG)
+  if (!zTop) return null;
+  const path = []; for (let x = id; x && x !== current; x = N[x].parent) path.unshift(x);
+  if (!zTop.pos.has(path[0])) return zTop.pos.has(id) ? toRect(zTop.pos.get(id), id, {ox: 0, oy: 0, s: 1}) : null;
+  let L = zTop, f = {ox: 0, oy: 0, s: 1};
+  for (const node of path) {
+    const p = L.pos.get(node); if (!p) return null;
+    if (node === id) return toRect(p, node, f);
+    const [w, h] = est(node), L2 = innerLayout(node), top = topOf(node);
+    const cs = Math.min((w - 2 * IN) / L2.width, (h - top - IN) / L2.height);
+    f = {ox: f.ox + f.s * (p.x + IN + (w - 2 * IN - L2.width * cs) / 2),
+         oy: f.oy + f.s * (p.y + top + (h - top - IN - L2.height * cs) / 2), s: f.s * cs};
+    L = L2;
+  }
+  return null;
+}
+function toRect(p, id, f) {
+  const ghost = N[id].parent !== current && !inView(id), [w, h] = ghost ? [GW, GH] : est(id);
+  return {x: f.ox + f.s * p.x, y: f.oy + f.s * p.y, w: w * f.s, h: h * f.s};
+}
+function reveal(id) {                             // links in the side panels: fly there in zoom mode
+  const box = isMember(id) ? N[id].parent : id;   // a row: fly to its class
+  if (mode === "zoom" && worldRect(box)) { selected = id; zoomTo(box); } else goTo(id);
+}
+let anim = 0;                                     // a new zoomTo cancels the running one
+function zoomTo(id) {
+  const wr = worldRect(id);
+  const r = wr ? {x: Z.x + Z.k * wr.x, y: Z.y + Z.k * wr.y, w: Z.k * wr.w, h: Z.k * wr.h} : zRects.get(id);
+  if (!r) return;
+  const cv = $("canvas"), vw = cv.clientWidth, vh = cv.clientHeight;
+  let f = Math.min(vw * 0.92 / r.w, vh * 0.92 / r.h);
+  if (!shownKids(id).length || N[id].parent !== current && !inView(id)) f = Math.min(f, 2 * W / r.w);  // nothing inside: no need to fill the screen
+  const from = {...Z}, wx = (r.x + r.w / 2 - Z.x) / Z.k, wy = (r.y + r.h / 2 - Z.y) / Z.k;
+  const cx0 = (vw / 2 - Z.x) / Z.k, cy0 = (vh / 2 - Z.y) / Z.k, t0 = performance.now(), me = ++anim;
+  const step = now => {
+    if (me !== anim) return;
+    const t = Math.min(1, (now - t0) / 380), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const k = from.k * Math.pow(f, e), cx = cx0 + (wx - cx0) * e, cy = cy0 + (wy - cy0) * e;
+    Z = {k, x: vw / 2 - cx * k, y: vh / 2 - cy * k}; zoomDraw();
+    if (t < 1) next();
+  };
+  const next = () => { let done = false;           // as in schedule(): frames may be paused
+    const go = () => { if (!done) { done = true; step(performance.now()); } };
+    requestAnimationFrame(go); setTimeout(go, 40); };
+  next();
+}
+(function zoomEvents() {
+  const cv = $("canvas");
+  let drag = null, lastClick = {id: null, t: 0};
+  cv.addEventListener("wheel", e => {
+    if (mode !== "zoom" || !zTop) return;
+    e.preventDefault(); anim++;                    // the user takes over from any animation
+    const b = cv.getBoundingClientRect();
+    zoomAt(e.clientX - b.left, e.clientY - b.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0018)));
+  }, {passive: false});
+  cv.addEventListener("pointerdown", e => { if (mode === "zoom" && e.button === 0) drag = {x: e.clientX, y: e.clientY, zx: Z?.x, zy: Z?.y, moved: false}; });
+  addEventListener("pointermove", e => {
+    if (!drag || !Z) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    drag.moved = true; anim++; cv.classList.add("panning");
+    Z.x = drag.zx + dx; Z.y = drag.zy + dy; schedule();
+  });
+  addEventListener("pointerup", () => { setTimeout(() => drag = null, 0); cv.classList.remove("panning"); });
+  cv.addEventListener("click", e => {
+    if (mode !== "zoom" || drag?.moved) return;
+    const row = e.target.closest(".mem");          // a method row: select it
+    if (row) { selected = row.dataset.id; schedule(); return; }
+    const g = e.target.closest(".node");
+    if (!g) { selected = null; schedule(); return; }
+    const id = g.dataset.id, now = performance.now();
+    const double = lastClick.id === id && now - lastClick.t < 400;
+    lastClick = double ? {id: null, t: 0} : {id, t: now};    // a third click starts over
+    if (double) { if (N[id].parent !== current && !inView(id)) goTo(id); else zoomTo(id); return; }
+    selected = id; schedule();
+  });
+  cv.addEventListener("mouseover", e => {      // both modes: light up a box's edges
+    const g = e.target.closest?.(".node"); if (!g) return;
+    const id = g.dataset.id;
+    cv.querySelectorAll(".edge").forEach(p => { const hit = p.dataset.a === id || p.dataset.b === id;
+      p.classList.toggle("dim", !hit); p.classList.toggle("hot", hit); });
+  });
+  cv.addEventListener("mouseout", e => {
+    if (!e.relatedTarget?.closest?.(".node")) cv.querySelectorAll(".edge").forEach(p => p.classList.remove("dim", "hot"));
+  });
+})();
+// In a diff, "changed only" starts on in drill-down (big views are unreadable
+// otherwise) and off in zoom mode (zooming out should show the rest of the code,
+// with unchanged parts faded), until the user sets it themselves.
+let onlyTouched = false;
+const defaultOnly = () => { if (DIFF && !onlyTouched) onlyChanged = $("only").checked = mode === "drill"; };
+function setMode(m) { mode = m; zKey = ""; sideFor = null; defaultOnly(); render(); }
+
+let run = 0;   // numbers the collapsed runs of unchanged lines in the side panel
+const changedIn = d => !!d && d.some(l => l[0] !== " ");
+function codeHtml(n) {
+  return codeBlock(n.src, n.diff, n.kind === "function" || n.kind === "method" ? n.line : null);
+}
+function codeBlock(src, diff, startLine) {
+  if (DIFF && diff) {
+    // collapse long unchanged runs to 3 lines of context
+    const d = diff, keep = new Array(d.length).fill(false);
+    d.forEach((l, i) => { if (l[0] !== " ") for (let k = Math.max(0, i - 3); k <= Math.min(d.length - 1, i + 3); k++) keep[k] = true; });
+    let html = "", i = 0;
+    while (i < d.length) {
+      if (!keep[i]) { let j = i; while (j < d.length && !keep[j]) j++;
+        html += `<div class="skip" data-run="${run}" data-n="⋯">${j - i} unchanged lines</div><span hidden data-body="${run++}">` +
+          d.slice(i, j).map(l => `<div data-n="">${esc(l[1]) || " "}</div>`).join("") + "</span>"; i = j; continue; }
+      const c = d[i][0] === "+" ? "p" : d[i][0] === "-" ? "m" : "";
+      html += `<div class="${c}" data-n="">${esc(d[i][1]) || " "}</div>`; i++;
+    }
+    return `<pre class="code">${html}</pre>`;
+  }
+  if (!src) return "";
+  return `<pre class="code">${src.split("\n").map((l, i) =>
+    `<div data-n="${startLine != null ? startLine + i : ""}">${esc(l) || " "}</div>`).join("")}</pre>`;
+}
+
+// ---------------------------------------------------------------- source files
+// Every page carries the whole source files (DATA.files), and a diff page the
+// whole-file diff of every changed file (DATA.fdiffs). Rows keep both the old and
+// the new line number, so a definition can be found on either side.
+const rowMemo = new Map();
+function fileRows(path) {
+  if (rowMemo.has(path)) return rowMemo.get(path);
+  let rows = null;
+  const d = DIFF && DATA.fdiffs && DATA.fdiffs[path];
+  if (d) { let o = 0, n = 0;
+    rows = d.map(([op, t]) => op === "-" ? {op, t, o: ++o} : op === "+" ? {op, t, n: ++n} : {op, t, o: ++o, n: ++n}); }
+  else if (DATA.files && DATA.files[path] != null)
+    rows = DATA.files[path].split(/\r?\n/).map((t, i) => ({op: " ", t, o: i + 1, n: i + 1}));
+  rowMemo.set(path, rows); return rows;
+}
+function fileView(s) {                            // s: {f: path, a: first line, b: last line, old: line numbers are pre-change}
+  const rows = fileRows(s.f); if (!rows) return "";
+  const key = s.old ? "o" : "n";
+  let html = "";
+  for (const r of rows) {
+    const ln = r[key], hl = ln != null && ln >= s.a && ln <= s.b;
+    const c = (r.op === "+" ? "p" : r.op === "-" ? "m" : "") + (hl ? " hl" : "");
+    html += `<div class="${c}"${ln === s.a ? ' data-at="1"' : ""} data-n="${r.op === "-" ? "" : r.n}">${esc(r.t) || " "}</div>`;
+  }
+  return `<pre class="code">${html}</pre>`;
+}
+function scrollToMark() {                         // put the definition near the top of the file box
+  const fb = $("filebox"), at = fb && fb.querySelector("[data-at]");
+  if (at) fb.scrollTop = Math.max(0, at.offsetTop - 3 * at.offsetHeight);
+}
+
+function renderSide(id) {
+  const n = N[id], own = st(id);
+  const under = x => { for (; x; x = N[x].parent) if (x === id) return true; return false; };
+  const uses = new Map(), usedBy = new Map();
+  for (const [s, d, , est] of DATA.edges) {
+    const a = under(s), b = under(d);
+    if (a && !b) uses.set(d, est || uses.get(d) || "");
+    if (b && !a) usedBy.set(s, est || usedBy.get(s) || "");
+  }
+  const list = (title, m) => !m.size ? "" : `<h3>${title} (${m.size})</h3>` + [...m].slice(0, 40).map(([x, est]) =>
+    `<div class="lnk" data-go="${esc(x)}"><span class="g ${est}">${GLYPH[est] || ""}</span>${esc(qual(x))}</div>`).join("") +
+    (m.size > 40 ? `<div class="lnk">… ${m.size - 40} more</div>` : "");
+  const codeTitle = n.kind === "module" ? "Module-level code" : n.kind === "file" ? "File-level code (outside classes and functions)"
+    : n.kind === "class" ? `${kindLabel(id)} body (outside methods defined inline)` : n.decl ? "Declaration (no definition found)" : "Source";
+  run = 0;
+  const code = codeHtml(n);
+  const fileCode = n.fsrc != null ? codeBlock(n.fsrc, n.fdiff, null) : "";
+  const rows = members(id);                       // a class: its methods, each opens its own code
+  const rowsHtml = !rows.length ? "" : `<h3>${N[rows[0]].kind === "method" ? "Methods" : "Members"} (${rows.length})</h3>` +
+    rows.map(m => { const k = st(m);
+      return `<div class="lnk" data-go="${esc(m)}"><span class="g ${k}">${GLYPH[k] || ""}</span>${esc(label(m))}<span style="color:var(--muted)"> ${esc(N[m].sig || "")}</span></div>`; }).join("");
+  const where = n.file ? esc(n.file) + (isUnit(id) ? "" : ":" + n.line) : "";
+  const extra = [n.ns ? "namespace " + esc(n.ns) : "", n.tmpl ? esc(n.tmpl) : "",
+    n.decl_file && (n.decl_file !== n.file || n.decl_line !== n.line) ? "declared in " + esc(n.decl_file) + ":" + n.decl_line : ""].filter(Boolean);
+  // the whole file, scrolled to where this is defined (falls back to the box's own code)
+  const whole = n.file && fileRows(n.file) ? (() => {
+    const unit = isUnit(id), from = unit ? 1 : n.line, to = unit ? 0 : n.line + (n.loc || 1) - 1;
+    const def = {f: n.file, a: from, b: to, old: own === "removed"};
+    const btn = (s, label) => `<button data-f="${esc(s.f)}" data-a="${s.a}" data-b="${s.b}"${s.old ? ' data-old="1"' : ""}>${esc(label)}</button>`;
+    const decl = n.decl_file && (n.decl_file !== n.file || n.decl_line !== n.line)
+      ? btn({f: n.decl_file, a: n.decl_line, b: n.decl_line}, "Declaration · " + n.decl_file.split("/").pop() + ":" + n.decl_line) : "";
+    const changed = DIFF && DATA.fdiffs?.[n.file] ? (own === "same" ? " — file changed" : " — changed") : "";
+    return `<h3>Source${changed}</h3><div class="srcbar">${btn(def, (unit ? "Top" : "Definition") + " · " + n.file.split("/").pop() + (unit ? "" : ":" + from))}${decl}</div>` +
+      `<div class="srcpath" id="srcpath">${esc(n.file)}</div><div class="filebox" id="filebox">${fileView(def)}</div>`;
+  })() : "";
+  $("side").innerHTML = `<div class="hd"><div class="nm">${own !== "same" ? `<span class="g ${own}">${GLYPH[own]}</span>` : ""}${esc(label(id))}${n.sig ? `<span style="font-weight:400;color:var(--muted)"> ${esc(n.sig)}</span>` : ""}</div>
+    <div class="meta">${esc(kindLabel(id))}${where ? " · " + where : ""} · ${esc(summary(id).split(" · ").pop().replace(/^\(.*$/, locOf(id) + " lines"))}</div>
+    ${extra.length ? `<div class="meta">${extra.join(" · ")}</div>` : ""}</div>
+    ${n.doc ? `<div class="doc">${esc(n.doc)}</div>` : ""}
+    ${rowsHtml}
+    ${whole || (code ? `<h3>${codeTitle}${own === "modified" && changedIn(n.diff) ? " — changed" : ""}</h3>` + code : "")}
+    ${whole ? "" : fileCode ? `<h3>Rest of ${esc(n.unit)} (includes, imports, globals)${own === "modified" && changedIn(n.fdiff) ? " — changed" : ""}</h3>` + fileCode : ""}
+    ${list("Uses", uses)}${list("Used by", usedBy)}`;
+  $("side").querySelectorAll("[data-go]").forEach(a => a.onclick = () => reveal(a.dataset.go));
+  $("side").querySelectorAll(".srcbar button").forEach(b => b.onclick = () => {
+    const s = {f: b.dataset.f, a: +b.dataset.a, b: +b.dataset.b, old: !!b.dataset.old};
+    $("filebox").innerHTML = fileView(s); $("srcpath").textContent = s.f; scrollToMark(); });
+  scrollToMark();
+  $("side").querySelectorAll(".skip").forEach(s => s.onclick = () => {
+    $("side").querySelector(`[data-body="${s.dataset.run}"]`).hidden = false; s.remove(); });
+}
+
+function renderChanges() {
+  if (!DIFF) { $("changes").remove(); $("onlyWrap").remove(); $("legend").remove(); return; }
+  $("legend").innerHTML = ["added", "modified", "removed"].map(k =>
+    `<span><i style="border-color:var(--${k.slice(0, 3)});background:var(--${k.slice(0, 3)}-bg)"></i>${k}</span>`).join("");
+  const changed = Object.keys(N).filter(topmost).sort((a, b) =>
+    (N[a].file || "").localeCompare(N[b].file || "") || (N[a].line || 0) - (N[b].line || 0));
+  // dependencies between modules that exist on only one side of the diff
+  const modOf = id => { let unit = null;     // outermost file, or class standing in for its file
+    for (let x = id; x; x = N[x].parent) if (isUnit(x) || N[x].unit) unit = x; return unit; };
+  const pairs = new Map();
+  for (const [s, d, , est] of DATA.edges) {
+    const a = modOf(s), b = modOf(d); if (!a || !b || a === b) continue;
+    const p = pairs.get(a + "\n" + b) || {a, b, n: 0, added: 0, removed: 0}; p.n++; if (est) p[est]++; pairs.set(a + "\n" + b, p);
+  }
+  const deps = [...pairs.values()].filter(p => p.added === p.n || p.removed === p.n);
+  const t = stats("root");
+  $("changes").innerHTML = `<h3>Changes · +${t.added} ~${t.modified} −${t.removed}</h3>` +
+    (changed.map(id => `<div class="row" data-go="${esc(id)}" title="${esc(qual(id))}"><span class="g ${st(id)}">${GLYPH[st(id)]}</span>${esc(label(id))} <small>${esc(isUnit(id) ? "" : (N[id].file || "").split("/").pop())}</small></div>`).join("") || `<div class="row">No changes</div>`) +
+    (deps.length ? `<h3>Module dependencies</h3>` + deps.map(p => { const k = p.added ? "added" : "removed";
+      return `<div class="row" data-go="${esc(p.a)}" title="${esc(N[p.a].file + " → " + N[p.b].file)}"><span class="g ${k}">${GLYPH[k]}</span>${esc(N[p.a].name.replace(/\.py$/, ""))} → ${esc(N[p.b].name.replace(/\.py$/, ""))}</div>`; }).join("") : "");  $("changes").querySelectorAll("[data-go]").forEach(a => a.onclick = () => reveal(a.dataset.go));
+  $("only").onchange = e => { onlyTouched = true; onlyChanged = e.target.checked; render(); };
+  defaultOnly();
+  document.body.classList.add("diff");
+}
+
+const setZoom = z => { zoom = z === null ? null : Math.max(0.2, Math.min(2.5, z)); render(); };
+const zoomCenter = f => { const cv = $("canvas"); zoomAt(cv.clientWidth / 2, cv.clientHeight / 2, f); };
+$("zoomIn").onclick = () => mode === "zoom" ? zoomCenter(1.5) : setZoom(lastScale * 1.25);
+$("zoomOut").onclick = () => mode === "zoom" ? zoomCenter(1 / 1.5) : setZoom(lastScale / 1.25);
+$("zoomFit").onclick = () => { if (mode === "zoom") { Z = null; schedule(); } else setZoom(null); };
+$("modeZoom").onclick = () => setMode("zoom");
+$("modeDrill").onclick = () => setMode("drill");
+$("canvas").addEventListener("wheel", e => { if (mode !== "drill" || !e.ctrlKey) return; e.preventDefault();
+  setZoom(lastScale * (e.deltaY < 0 ? 1.1 : 1 / 1.1)); }, {passive: false});
+addEventListener("resize", () => { if (mode === "zoom") schedule(); else if (zoom === null) render(); });
+document.title = "codemap · " + DATA.name;
+$("mode").textContent = DIFF ? `${DATA.base} → ${DATA.head}` : DATA.head;
+renderChanges();
+readHash();
+</script>
+</body>
+</html>

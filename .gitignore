@@ -1,0 +1,17 @@
+# environments and caches
+.venv/
+venv/
+__pycache__/
+
+# codebases cloned locally to try codemap on
+testbench/
+
+# generated pages (they embed the source code of whatever was mapped)
+*.html
+!viewer.html
+
+# local scratch copies and per-project configs
+*.txt
+!requirements.txt
+*.zip
+rlstats.codemap.json

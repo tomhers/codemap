@@ -1,0 +1,15 @@
+{
+  "name": "cpp_small",
+  "desc": "A tiny geometry library: a header/source split, overloads, a template specialization.",
+  "exclude": [],
+  "groups": {
+    "Public API": {
+      "desc": "What users of the library include.",
+      "files": ["include/*"]
+    },
+    "Implementation": {
+      "desc": "Definitions and helpers.",
+      "files": ["src/*"]
+    }
+  }
+}
